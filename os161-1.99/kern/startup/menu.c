@@ -245,6 +245,16 @@ cmd_pwd(int nargs, char **args)
 }
 
 /*
+ * Command for enabling debugging of DB_THREADS
+ */
+static
+int
+cmd_dth(int nargs, char **args)
+{
+	dbflags = 0x0010;
+}
+
+/*
  * Command for running sync.
  */
 static
@@ -426,11 +436,12 @@ showmenu(const char *name, const char *x[])
 }
 
 static const char *opsmenu[] = {
+	"[dth]     Enable debugging output   ",
 	"[s]       Shell                     ",
 	"[p]       Other program             ",
 	"[mount]   Mount a filesystem        ",
 	"[unmount] Unmount a filesystem      ",
-	"[bootfs]  Set \"boot\" filesystem     ",
+	"[bootfs]  Set \"boot\" filesystem   ",
 	"[pf]      Print a file              ",
 	"[cd]      Change directory          ",
 	"[pwd]     Print current directory   ",
@@ -544,6 +555,7 @@ static struct {
 	{ "pf",		printfile },
 	{ "cd",		cmd_chdir },
 	{ "pwd",	cmd_pwd },
+	{ "dth",	cmd_dth },
 	{ "sync",	cmd_sync },
 	{ "panic",	cmd_panic },
 	{ "q",		cmd_quit },

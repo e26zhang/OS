@@ -251,7 +251,12 @@ static
 int
 cmd_dth(int nargs, char **args)
 {
+	(void)nargs;
+	(void)args;
+	
 	dbflags = 0x0010;
+	
+	return 0;
 }
 
 /*
@@ -547,6 +552,7 @@ static struct {
 	{ "?t",		cmd_testmenu },
 
 	/* operations */
+	{ "dth",	cmd_dth },
 	{ "s",		cmd_shell },
 	{ "p",		cmd_prog },
 	{ "mount",	cmd_mount },
@@ -555,7 +561,6 @@ static struct {
 	{ "pf",		printfile },
 	{ "cd",		cmd_chdir },
 	{ "pwd",	cmd_pwd },
-	{ "dth",	cmd_dth },
 	{ "sync",	cmd_sync },
 	{ "panic",	cmd_panic },
 	{ "q",		cmd_quit },

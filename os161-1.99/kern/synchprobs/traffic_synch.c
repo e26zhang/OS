@@ -4,25 +4,55 @@
 #include <synch.h>
 #include <opt-A1.h>
 
-/* 
- * This simple default synchronization mechanism allows only vehicle at a time
- * into the intersection.   The intersectionSem is used as a a lock.
- * We use a semaphore rather than a lock so that this code will work even
- * before locks are implemented.
- */
+#include <array.h>
 
-/* 
- * Replace this default synchronization mechanism with your own (better) mechanism
- * needed for your solution.   Your mechanism may use any of the available synchronzation
- * primitives, e.g., semaphores, locks, condition variables.   You are also free to 
- * declare other global variables if your solution requires them.
- */
+bool right_turn (Direction * origin, Direction * destination);
+bool good_pair (Direction * first_origin, 
+                Direction * first_destination, 
+                Direction * second_origin,
+                Direction * second_destination);
 
-/*
- * replace this with declarations of any synchronization and other variables you need here
- */
-static struct semaphore *intersectionSem;
+ bool right_turn (Direction * origin, Direction * destination) {
+    if (*origin == north && *destination == west) {
+      return true;
+    }
+    else if (*origin == east && *destination == north) {
+      return true;      
+    }
+    else if (*origin == south && *destination == east) {
+      return true;      
+    }
+    else if (*origin == west && *destination == south) {
+      return true;      
+    }
+    else {
+      return false;
+    }
+}
 
+bool good_pair (Direction *first_origin, 
+                Direction * first_destination, 
+                Direction * second_origin,
+                Direction * second_destination) {
+  if (*first_origin == *second_origin) {
+    return true;
+  }
+  else if ((*first_origin == *second_destination) && (*second_origin == *first_destination)) {
+    return true;
+  }
+  else if ((*first_destination != *second_destination) && 
+           (right_turn(first_origin, first_destination) || right_turn(second_origin, second_destination))) {
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+struct array* origin_array; 
+struct array* destination_array; 
+struct lock* masterLock;
+struct cv* masterCV;
 
 /* 
  * The simulation driver will call this function once before starting
@@ -34,13 +64,12 @@ static struct semaphore *intersectionSem;
 void
 intersection_sync_init(void)
 {
-  /* replace this default implementation with your own implementation */
-
-  intersectionSem = sem_create("intersectionSem",1);
-  if (intersectionSem == NULL) {
-    panic("could not create intersection semaphore");
-  }
-  return;
+  origin_array = array_create();
+  array_init(origin_array);
+  destination_array = array_create();
+  array_init(destination_array);
+  masterLock = lock_create("masterLock");
+  masterCV = cv_create("masterCV");
 }
 
 /* 
@@ -53,12 +82,11 @@ intersection_sync_init(void)
 void
 intersection_sync_cleanup(void)
 {
-  /* replace this default implementation with your own implementation */
-  KASSERT(intersectionSem != NULL);
-  sem_destroy(intersectionSem);
-}
-
-
+  array_destroy(origin_array);
+  array_destroy(destination_array);  
+  lock_destroy(masterLock);
+  cv_destroy(masterCV);
+}  
 /*
  * The simulation driver will call this function each time a vehicle
  * tries to enter the intersection, before it enters.
@@ -75,11 +103,37 @@ intersection_sync_cleanup(void)
 void
 intersection_before_entry(Direction origin, Direction destination) 
 {
-  /* replace this default implementation with your own implementation */
-  (void)origin;  /* avoid compiler complaint about unused parameter */
-  (void)destination; /* avoid compiler complaint about unused parameter */
-  KASSERT(intersectionSem != NULL);
-  P(intersectionSem);
+  lock_acquire(masterLock);
+
+  int array_size = array_num(origin_array);
+
+  Direction * input_origin = kmalloc(sizeof(enum Directions));
+  Direction * input_destination = kmalloc(sizeof(enum Directions));
+  *input_origin = origin;
+  *input_destination = destination;
+
+  bool safe = false;
+  LOOP:while ( safe == false ) {
+    array_size = array_num(origin_array);
+
+    if (array_size == 0) {
+      safe = true;
+    }
+    
+    for (int i = 0; i < array_size; i++) { 
+      safe = good_pair(input_origin, input_destination, array_get(origin_array, i), array_get(destination_array, i));
+
+      if ( safe == false ) {
+        cv_wait(masterCV, masterLock);
+        goto LOOP;
+      }
+    }
+
+    array_add(origin_array, input_origin, NULL);
+    array_add(destination_array, input_destination, NULL);
+  }
+
+  lock_release(masterLock);
 }
 
 
@@ -97,9 +151,20 @@ intersection_before_entry(Direction origin, Direction destination)
 void
 intersection_after_exit(Direction origin, Direction destination) 
 {
-  /* replace this default implementation with your own implementation */
-  (void)origin;  /* avoid compiler complaint about unused parameter */
-  (void)destination; /* avoid compiler complaint about unused parameter */
-  KASSERT(intersectionSem != NULL);
-  V(intersectionSem);
+  lock_acquire(masterLock);
+  
+  int array_size = array_num(origin_array); 
+  
+  for (int i = 0; i < array_size; i++) { 
+    Direction * target_origin = array_get(origin_array, i);
+    Direction * target_destination = array_get(destination_array, i);
+    if ((*target_origin == origin) && (*target_destination == destination)) {
+      array_remove(origin_array, i);
+      array_remove(destination_array, i);
+      cv_broadcast(masterCV, masterLock);
+      break;
+    }
+  }
+
+  lock_release(masterLock);
 }

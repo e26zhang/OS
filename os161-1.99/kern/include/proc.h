@@ -50,7 +50,7 @@ struct semaphore;
 
 
 void givepid(struct proc *proc);
-struct array *allproccesses;                              
+struct array *allprocesses;                              
 struct lock*  pidlock;
 struct lock * pidlock2;
 

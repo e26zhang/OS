@@ -9,14 +9,16 @@
 #include <thread.h>
 #include <addrspace.h>
 #include <copyinout.h>
+#include <mips/trapframe.h>
 
   /* this implementation of sys__exit does not do anything with the exit code */
   /* this needs to be fixed to get exit() and waitpid() working properly */
 
 int min_id = 2; 
-
+void kill_kids (struct array * processes, int num_processes );
+  
 void kill_kids (struct array * processes, int num_processes ) {
-  count = 0;
+  int count = 0;
   while (count < num_processes) {
      struct proc *current = array_get(processes, 0); // You can keep removing [0] since the array shifts entries down
      if (current == NULL) {
@@ -119,7 +121,7 @@ sys_waitpid(pid_t pid,
 
   lock_acquire(pidlock);
   int array_location = pid - min_id;
-  struct proc *current = array_get(allproccesses,array_location);
+  struct proc *current = array_get(allprocesses,array_location);
   lock_release(pidlock);
 
   lock_acquire(current->waitinglock);
@@ -152,12 +154,11 @@ int sys_fork(struct trapframe *trap, pid_t *retval) {
 
    memcpy(myclone_tf,trap,sizeof(struct trapframe));
 
-   thread_fork(curthread->t_name, myclone, &enter_forked_process, myclone_tf, 0);
+   thread_fork(curthread->t_name, myclone, (void*)enter_forked_process, myclone_tf, 0);
 
    // Abuse your child by even taking away its ability to truly die :)
 
-   lock_acquire(myclone->p_exit_lk);
-   *retval = myclone->p_id;
+   lock_acquire(myclone->exitinglock);
+   *retval = myclone->myid;
     return 0;
 }
-  

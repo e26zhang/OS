@@ -74,27 +74,27 @@ struct semaphore *no_proc_sem;
 
 
 void givepid(struct proc *proc) {
-	int count = 0;	
+	unsigned int count = 0;	
 	int min_id = 2; // Assume the min ID is 2
 	if (allprocesses == NULL) {
 		allprocesses = array_create();
 		array_init(allprocesses);
 	}
-	
+
 	void * curr_array_entry = array_get(allprocesses,count);
 	while (curr_array_entry != NULL) {
 		count ++;		
-		curr_array_entry = array_get(allproccesses,count);
+		curr_array_entry = array_get(allprocesses,count);
 	} // Looks to find an empty array entry previously added it can set
 
 	
 	if (count < array_num(allprocesses)) { // If it finds an array entry to set, it sets it
-		array_set(allproccesses,count,proc);
+		array_set(allprocesses,count,proc);
 		proc->myid = count + min_id;		
 	}
 	else {
-		array_add(allproccesses, proc, NULL); // If it finds the whole array full, it adds this new process
-		proc->myid = (array_num(allproccess) - 1) + min_id ;				
+		array_add(allprocesses, proc, NULL); // If it finds the whole array full, it adds this new process
+		proc->myid = (array_num(allprocesses) - 1) + min_id ;				
 	}
 }
 
@@ -193,12 +193,12 @@ proc_destroy(struct proc *proc)
 
 	// Lock needed here?
 
-	array_set(procarray,where,NULL);
+	array_set(allprocesses,(proc->myid - 2),NULL);
 		
-	array_destroy(&proc->mykids);		
+	array_destroy(proc->mykids);		
 	lock_destroy(proc->waitinglock);
 	lock_destroy(proc->exitinglock);
-	cv_destroy(proc->myvc);
+	cv_destroy(proc->mycv);
 
 
 	threadarray_cleanup(&proc->p_threads);
@@ -324,9 +324,9 @@ proc_create_runprogram(const char *name)
 
 	proc->mycv=cv_create("mycv");
 
-	lock_acquire("pidlock");
+	lock_acquire(pidlock);
 	givepid(proc);
-	lock_release("pidlock");
+	lock_release(pidlock);
 
 
 

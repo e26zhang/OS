@@ -50,6 +50,9 @@
 #include <vfs.h>
 #include <synch.h>
 #include <kern/fcntl.h>  
+#include <array.h>
+
+void givepid(struct proc *proc);
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
@@ -69,6 +72,31 @@ static struct semaphore *proc_count_mutex;
 struct semaphore *no_proc_sem;   
 #endif  // UW
 
+
+void givepid(struct proc *proc) {
+	int count = 0;	
+	int min_id = 2; // Assume the min ID is 2
+	if (allprocesses == NULL) {
+		allprocesses = array_create();
+		array_init(allprocesses);
+	}
+	
+	void * curr_array_entry = array_get(allprocesses,count);
+	while (curr_array_entry != NULL) {
+		count ++;		
+		curr_array_entry = array_get(allproccesses,count);
+	} // Looks to find an empty array entry previously added it can set
+
+	
+	if (count < array_num(allprocesses)) { // If it finds an array entry to set, it sets it
+		array_set(allproccesses,count,proc);
+		proc->myid = count + min_id;		
+	}
+	else {
+		array_add(allproccesses, proc, NULL); // If it finds the whole array full, it adds this new process
+		proc->myid = (array_num(allproccess) - 1) + min_id ;				
+	}
+}
 
 
 /*
@@ -163,6 +191,16 @@ proc_destroy(struct proc *proc)
 	}
 #endif // UW
 
+	// Lock needed here?
+
+	array_set(procarray,where,NULL);
+		
+	array_destroy(&proc->mykids);		
+	lock_destroy(proc->waitinglock);
+	lock_destroy(proc->exitinglock);
+	cv_destroy(proc->myvc);
+
+
 	threadarray_cleanup(&proc->p_threads);
 	spinlock_cleanup(&proc->p_lock);
 
@@ -184,7 +222,6 @@ proc_destroy(struct proc *proc)
 	V(proc_count_mutex);
 #endif // UW
 	
-
 }
 
 /*
@@ -207,7 +244,13 @@ proc_bootstrap(void)
   if (no_proc_sem == NULL) {
     panic("could not create no_proc_sem semaphore\n");
   }
+
+  
 #endif // UW 
+
+pidlock = lock_create("pidlock");
+pidlock2 = lock_create("pidlock2");
+
 }
 
 /*
@@ -270,6 +313,22 @@ proc_create_runprogram(const char *name)
 	proc_count++;
 	V(proc_count_mutex);
 #endif // UW
+	proc->mykids=array_create();
+	array_init(proc->mykids);
+
+	proc->exitcode=0;
+	proc->exited=false;
+
+	proc->exitinglock=lock_create("exitinglock");
+	proc->waitinglock=lock_create("waitinglock");
+
+	proc->mycv=cv_create("mycv");
+
+	lock_acquire("pidlock");
+	givepid(proc);
+	lock_release("pidlock");
+
+
 
 	return proc;
 }

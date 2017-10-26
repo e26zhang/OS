@@ -13,17 +13,51 @@
   /* this implementation of sys__exit does not do anything with the exit code */
   /* this needs to be fixed to get exit() and waitpid() working properly */
 
+int min_id = 2; 
+
+void kill_kids (struct array * processes, int num_processes ) {
+  count = 0;
+  while (count < num_processes) {
+     struct proc *current = array_get(processes, 0); // You can keep removing [0] since the array shifts entries down
+     if (current == NULL) {
+       //DO NOTHING
+     }
+     else {
+       lock_release(current->exitinglock);
+     }
+     array_remove(processes, 0);
+  }
+}
+
 void sys__exit(int exitcode) {
 
   struct addrspace *as;
   struct proc *p = curproc;
   /* for now, just include this to keep the compiler from complaining about
      an unused variable */
-  (void)exitcode;
 
   DEBUG(DB_SYSCALL,"Syscall: _exit(%d)\n",exitcode);
 
   KASSERT(curproc->p_addrspace != NULL);
+
+  // -------------------------------------------------------------
+
+  p->exitcode = _MKWAIT_EXIT(exitcode);
+  p->exited = true;
+
+  // Telling its kids they can die >:D
+
+  struct array * cur_array = p->mykids;
+  int num_kids = array_num(cur_array);
+
+  kill_kids (cur_array, num_kids);
+
+  cv_broadcast(p->mycv, p->waitinglock);
+    
+  lock_acquire(p->exitinglock);
+  lock_release(p->exitinglock);
+  // ---------------------------------------------------------------
+
   as_deactivate();
   /*
    * clear p_addrspace before calling as_destroy. Otherwise if
@@ -53,10 +87,8 @@ void sys__exit(int exitcode) {
 int
 sys_getpid(pid_t *retval)
 {
-  /* for now, this is just a stub that always returns a PID of 1 */
-  /* you need to fix this to make it work properly */
-  *retval = 1;
-  return(0);
+   *retval=curproc->myid;
+   return 0; 
 }
 
 /* stub handler for waitpid() system call                */
@@ -82,8 +114,25 @@ sys_waitpid(pid_t pid,
   if (options != 0) {
     return(EINVAL);
   }
+
+  // -----------------------------------------
+
+  lock_acquire(pidlock);
+  int array_location = pid - min_id;
+  struct proc *current = array_get(allproccesses,array_location);
+  lock_release(pidlock);
+
+  lock_acquire(current->waitinglock);
+  while(current->exited == false){
+      cv_wait(current->mycv,current->waitinglock);
+  }
+  lock_release(current->waitinglock);
+
+  // ----------------------------------------
+
   /* for now, just pretend the exitstatus is 0 */
-  exitstatus = 0;
+  exitstatus=current->exitcode;
+  
   result = copyout((void *)&exitstatus,status,sizeof(int));
   if (result) {
     return(result);
@@ -92,3 +141,23 @@ sys_waitpid(pid_t pid,
   return(0);
 }
 
+int sys_fork(struct trapframe *trap, pid_t *retval) {
+   struct proc *myclone = proc_create_runprogram(curproc->p_name);
+
+   as_copy(curproc_setas(curproc->p_addrspace),&(myclone->p_addrspace));
+
+   struct trapframe *myclone_tf=kmalloc(sizeof(struct trapframe));
+
+   array_add(curproc->mykids,myclone,NULL);
+
+   memcpy(myclone_tf,trap,sizeof(struct trapframe));
+
+   thread_fork(curthread->t_name, myclone, &enter_forked_process, myclone_tf, 0);
+
+   // Abuse your child by even taking away its ability to truly die :)
+
+   lock_acquire(myclone->p_exit_lk);
+   *retval = myclone->p_id;
+    return 0;
+}
+  

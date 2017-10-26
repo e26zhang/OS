@@ -36,6 +36,9 @@
  * Note: curproc is defined by <current.h>.
  */
 
+#include <array.h>
+#include <types.h>
+#include <synch.h>
 #include <spinlock.h>
 #include <thread.h> /* required for struct threadarray */
 
@@ -44,6 +47,12 @@ struct vnode;
 #ifdef UW
 struct semaphore;
 #endif // UW
+
+
+void givepid(struct proc *proc);
+struct array *allproccesses;                              
+struct lock*  pidlock;
+struct lock * pidlock2;
 
 /*
  * Process structure.
@@ -69,6 +78,16 @@ struct proc {
 #endif
 
 	/* add more material here as needed */
+
+	pid_t myid;
+	struct array *mykids;
+	
+	struct lock *exitinglock;
+	struct lock *waitinglock;
+	struct cv *mycv;
+	int exitcode;
+	bool exited;
+
 };
 
 /* This is the process structure for the kernel and for kernel-only threads. */

@@ -64,6 +64,8 @@ void sys__exit(int exitcode);
 int sys_getpid(pid_t *retval);
 int sys_waitpid(pid_t pid, userptr_t status, int options, pid_t *retval);
 
+int sys_fork(struct trapframe *trap, pid_t *retval);
+
 #endif // UW
 
 #endif /* _SYSCALL_H_ */

@@ -81,12 +81,14 @@ void givepid(struct proc *proc) {
 		array_init(allprocesses);
 	}
 
-	void * curr_array_entry = array_get(allprocesses,count);
-	while (curr_array_entry != NULL) {
-		count ++;		
-		curr_array_entry = array_get(allprocesses,count);
-	} // Looks to find an empty array entry previously added it can set
-
+	if (array_num(allprocesses) != 0) {
+		void * curr_array_entry;
+		while (count < array_num(allprocesses)) {
+				
+			curr_array_entry = array_get(allprocesses,count);
+			count ++;	
+		} // Looks to find an empty array entry previously added it can set
+	}
 	
 	if (count < array_num(allprocesses)) { // If it finds an array entry to set, it sets it
 		array_set(allprocesses,count,proc);
@@ -192,10 +194,12 @@ proc_destroy(struct proc *proc)
 #endif // UW
 
 	// Lock needed here?
-
+	lock_acquire(pidlock);
 	array_set(allprocesses,(proc->myid - 2),NULL);
 		
-	array_destroy(proc->mykids);		
+	array_destroy(proc->mykids);
+	lock_release(pidlock);	
+
 	lock_destroy(proc->waitinglock);
 	lock_destroy(proc->exitinglock);
 	cv_destroy(proc->mycv);

@@ -20,6 +20,7 @@ main(int argc, char *argv[])
   (void)argv;
   pid_t pid;
   pid = fork();
+
   if (pid < 0) {
     warn("fork");
   }

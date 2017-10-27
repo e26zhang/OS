@@ -28,6 +28,7 @@ void kill_kids (struct array * processes, int num_processes ) {
        lock_release(current->exitinglock);
      }
      array_remove(processes, 0);
+     count++;
   }
 }
 
@@ -146,16 +147,16 @@ sys_waitpid(pid_t pid,
 int sys_fork(struct trapframe *trap, pid_t *retval) {
    struct proc *myclone = proc_create_runprogram(curproc->p_name);
 
-   as_copy(curproc_setas(curproc->p_addrspace),&(myclone->p_addrspace));
+   as_copy(curproc_getas(),&(myclone->p_addrspace));
 
    struct trapframe *myclone_tf=kmalloc(sizeof(struct trapframe));
-
-   array_add(curproc->mykids,myclone,NULL);
 
    memcpy(myclone_tf,trap,sizeof(struct trapframe));
 
    thread_fork(curthread->t_name, myclone, (void*)enter_forked_process, myclone_tf, 0);
 
+   array_add(curproc->mykids,myclone,NULL);   
+   
    // Abuse your child by even taking away its ability to truly die :)
 
    lock_acquire(myclone->exitinglock);

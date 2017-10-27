@@ -16,6 +16,13 @@
 
 int min_id = 2; 
 void kill_kids (struct array * processes, int num_processes );
+struct proc * gen_pid (pid_t pid);
+
+
+struct proc * gen_pid (pid_t pid) {
+  int array_location = pid - min_id;
+  return array_get(allprocesses,array_location);
+}
   
 void kill_kids (struct array * processes, int num_processes ) {
   int count = 0;
@@ -121,8 +128,7 @@ sys_waitpid(pid_t pid,
   // -----------------------------------------
 
   lock_acquire(pidlock);
-  int array_location = pid - min_id;
-  struct proc *current = array_get(allprocesses,array_location);
+  struct proc *current = gen_pid(pid);
   lock_release(pidlock);
 
   lock_acquire(current->waitinglock);

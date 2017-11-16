@@ -10,6 +10,8 @@
 #include <addrspace.h>
 #include <copyinout.h>
 #include <mips/trapframe.h>
+#include <kern/fcntl.h>
+#include <vfs.h>
 
   /* this implementation of sys__exit does not do anything with the exit code */
   /* this needs to be fixed to get exit() and waitpid() working properly */
@@ -168,4 +170,89 @@ int sys_fork(struct trapframe *trap, pid_t *retval) {
    lock_acquire(myclone->exitinglock);
    *retval = myclone->myid;
     return 0;
+}
+
+int
+sys_execv(char *program, char **args) {
+
+
+  
+    vaddr_t entry, stack;
+
+    struct addrspace  * currentspace = curproc_getas();
+
+    int result1, result2;
+    int arguments = 0;
+
+    while(args[arguments] != NULL){ // Determine number of arguments
+      arguments = arguments + 1;
+    }
+
+    char **newargs = kmalloc(sizeof(char) * (arguments + 1)); // Copy the args
+    for (int i = 0; i < arguments; i++) {
+      newargs[i] = (char *)kmalloc(sizeof(char) * (strlen(args[i]) + 1) );
+      result1 = copyinstr((userptr_t)args[i], newargs[i], strlen(args[i]) + 1, NULL);
+    }
+
+    char *newprog = kmalloc(sizeof(char *) * (strlen(program) + 1)); //Copy the program
+    result2 = copyinstr((userptr_t)program, newprog, (strlen(program) + 1), NULL);
+
+    newargs[arguments] = NULL; // NULL terminate array
+
+    int outcome1, outcome2, outcome3; // Open file
+    struct vnode * virtualfile;
+    outcome1 = vfs_open(newprog, O_RDONLY, 0, &virtualfile);
+
+    struct addrspace *newaddrspace; // New address space
+    newaddrspace = as_create();
+
+    curproc_setas(newaddrspace); // Switch to new space
+    as_activate();
+    
+    outcome2 = load_elf(virtualfile, &entry); // Load elf and close file
+    vfs_close(virtualfile);
+
+    outcome3 = as_define_stack(newaddrspace, &stack); // Set stack of new process
+
+    as_destroy(currentspace);
+
+    // KASSE
+
+    vaddr_t argstack[arguments + 1]; // 8 bit align 
+    if ((stack % 8) != 0) {
+      vaddr_t substack = stack - 8;
+      stack = ROUNDUP(substack, 8);
+    }
+
+    int cut = arguments - 1;
+
+    for (int i = cut; i > -1; i--) { //Strings to stack
+      int len = strlen(newargs[i]) + 1; 
+      stack = stack - len; 
+      copyoutstr(newargs[i], (userptr_t)stack, len, NULL);
+      argstack[i] = stack;
+    }
+
+    if ((stack % 4) != 0) { // Align strings
+      vaddr_t substack = stack - 4;
+      stack = ROUNDUP(substack, 4);
+    }
+
+    // stack = stack - 4; // For extra NULL
+
+    //argstack[arguments] = NULL;
+    argstack[arguments] = 0;
+
+    for (int i = cut + 1; i > -1; i--) { // Put string pointers on stack
+      int rounded =  ROUNDUP(sizeof(vaddr_t), 4); 
+      stack = stack - rounded;
+      copyout(&argstack[i], (userptr_t)stack, sizeof(vaddr_t));
+    }
+  
+    
+
+    enter_new_process(arguments, (userptr_t)stack, stack, entry); 
+panic("enter_new_process returned\n");
+	return EINVAL;
+
 }

@@ -44,6 +44,7 @@
 #include <vfs.h>
 #include <syscall.h>
 #include <test.h>
+#include <copyinout.h>
 
 /*
  * Load program "progname" and start running it in usermode.
@@ -52,8 +53,14 @@
  * Calls vfs_open on progname and thus may destroy it.
  */
 int
-runprogram(char *progname)
+runprogram(char *progname, char **args)
 {
+	int arguments = 0;
+
+    while(args[arguments] != NULL){ // Determine number of arguments
+      arguments = arguments + 1;
+    }
+
 	struct addrspace *as;
 	struct vnode *v;
 	vaddr_t entrypoint, stackptr;
@@ -97,9 +104,50 @@ runprogram(char *progname)
 		return result;
 	}
 
+// -------------------------------------------------------------------
+
+  vaddr_t argstack[arguments + 1]; // 8 bit align 
+    if ((stackptr % 8) != 0) {
+      vaddr_t substack = stackptr - 8;
+      stackptr = ROUNDUP(substack, 8);
+    }
+
+    int cut = arguments - 1;
+
+    for (int i = cut; i > -1; i--) { //Strings to stack
+      int len = strlen(args[i]) + 1; 
+      stackptr = stackptr - len; 
+      copyoutstr(args[i], (userptr_t)stackptr, len, NULL);
+      argstack[i] = stackptr;
+    }
+
+    if ((stackptr % 4) != 0) { // Align strings
+      vaddr_t substack = stackptr - 4;
+      stackptr = ROUNDUP(substack, 4);
+    }
+
+    // stack = stack - 4; // For extra NULL
+
+    //argstack[arguments] = NULL;
+    argstack[arguments] = 0;
+
+    for (int i = cut + 1; i > -1; i--) { // Put string pointers on stack
+      int rounded =  ROUNDUP(sizeof(vaddr_t), 4); 
+      stackptr = stackptr - rounded;
+      copyout(&argstack[i], (userptr_t)stackptr, sizeof(vaddr_t));
+    }
+  
+    
+
+    enter_new_process(arguments, (userptr_t)stackptr, stackptr, entrypoint); 
+
+
+
+// ------------------------------------------------------------------
+
 	/* Warp to user mode. */
-	enter_new_process(0 /*argc*/, NULL /*userspace addr of argv*/,
-			  stackptr, entrypoint);
+	//enter_new_process(0 /*argc*/, NULL /*userspace addr of argv*/,
+	//		  stackptr, entrypoint);
 	
 	/* enter_new_process does not return. */
 	panic("enter_new_process returned\n");

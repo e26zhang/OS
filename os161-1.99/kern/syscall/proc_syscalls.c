@@ -188,13 +188,13 @@ sys_execv(char *program, char **args) {
       arguments = arguments + 1;
     }
 
-    char **newargs = kmalloc(sizeof(char) * (arguments + 1)); // Copy the args
+    char **newargs = kmalloc(sizeof(char *) * (arguments + 1)); // Copy the args
     for (int i = 0; i < arguments; i++) {
-      newargs[i] = (char *)kmalloc(sizeof(char) * (strlen(args[i]) + 1) );
+      newargs[i] = kmalloc(sizeof(char) * (strlen(args[i]) + 1) );
       result1 = copyinstr((userptr_t)args[i], newargs[i], strlen(args[i]) + 1, NULL);
     }
 
-    char *newprog = kmalloc(sizeof(char *) * (strlen(program) + 1)); //Copy the program
+    char *newprog = kmalloc(sizeof(char) * (strlen(program) + 1)); //Copy the program
     result2 = copyinstr((userptr_t)program, newprog, (strlen(program) + 1), NULL);
 
     newargs[arguments] = NULL; // NULL terminate array
@@ -219,10 +219,10 @@ sys_execv(char *program, char **args) {
     // KASSE
 
     vaddr_t argstack[arguments + 1]; // 8 bit align 
-    if ((stack % 8) != 0) {
-      vaddr_t substack = stack - 8;
-      stack = ROUNDUP(substack, 8);
-    }
+    //if ((stack % 8) != 0) {
+    //  vaddr_t substack = stack - 8;
+    //  stack = ROUNDUP(substack, 8);
+    //}
 
     int cut = arguments - 1;
 

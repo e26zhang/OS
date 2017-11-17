@@ -107,10 +107,10 @@ runprogram(char *progname, char **args)
 // -------------------------------------------------------------------
 
   vaddr_t argstack[arguments + 1]; // 8 bit align 
-    if ((stackptr % 8) != 0) {
-      vaddr_t substack = stackptr - 8;
-      stackptr = ROUNDUP(substack, 8);
-    }
+   // if ((stackptr % 8) != 0) {
+   //   vaddr_t substack = stackptr - 8;
+   //   stackptr = ROUNDUP(substack, 8);
+   // }
 
     int cut = arguments - 1;
 

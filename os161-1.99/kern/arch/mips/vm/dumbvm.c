@@ -187,22 +187,36 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	/* Disable interrupts on this CPU while frobbing the TLB. */
 	spl = splhigh();
 
-	for (i=0; i<NUM_TLB; i++) {
-		tlb_read(&ehi, &elo, i);
-		if (elo & TLBLO_VALID) {
-			continue;
+	int NUM_TAB_PLUS = NUM_TLB + 1;
+	for (i=0; i<NUM_TAB_PLUS ; i++) {
+
+		if ( i + 1 != NUM_TAB_PLUS) {
+			tlb_read(&ehi, &elo, i);
+
+			if (elo & TLBLO_VALID) {
+				continue;
+			}
+			ehi = faultaddress;
+			elo = paddr | TLBLO_DIRTY | TLBLO_VALID;
+			DEBUG(DB_VM, "dumbvm: 0x%x -> 0x%x\n", faultaddress, paddr);
+			tlb_write(ehi, elo, i);
+			splx(spl);
+			return 0;
 		}
-		ehi = faultaddress;
-		elo = paddr | TLBLO_DIRTY | TLBLO_VALID;
-		DEBUG(DB_VM, "dumbvm: 0x%x -> 0x%x\n", faultaddress, paddr);
-		tlb_write(ehi, elo, i);
-		splx(spl);
-		return 0;
+		else {
+			ehi = faultaddress;
+			elo = paddr | TLBLO_DIRTY | TLBLO_VALID;
+		//	DEBUG(DB_VM, "dumbvm: 0x%x -> 0x%x\n", faultaddress, paddr);
+			tlb_random(ehi, elo);
+			splx(spl);
+			return 0;
+		}
+
 	}
 
-	kprintf("dumbvm: Ran out of TLB entries - cannot handle page fault\n");
-	splx(spl);
-	return EFAULT;
+	/*kprintf("dumbvm: Ran out of TLB entries - cannot handle page fault\n");
+	splx(spl); 
+	return NULL; */
 }
 
 struct addrspace *

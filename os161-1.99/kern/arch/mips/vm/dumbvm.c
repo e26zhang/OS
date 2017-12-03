@@ -122,7 +122,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	    case VM_FAULT_READONLY:
 		/* We always create pages read-write, so we can't get this */
 		//panic("dumbvm: got VM_FAULT_READONLY\n");
-		return EPERM;
+		return EINVAL;
 	    case VM_FAULT_READ:
 	    case VM_FAULT_WRITE:
 		break;
@@ -227,9 +227,10 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 
 	}
 
-	/*kprintf("dumbvm: Ran out of TLB entries - cannot handle page fault\n");
+	// Should never get here
+	kprintf("dumbvm: Ran out of TLB entries - cannot handle page fault\n");
 	splx(spl); 
-	return NULL; */
+	return EFAULT; 
 }
 
 struct addrspace *

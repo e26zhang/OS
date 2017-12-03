@@ -20,7 +20,7 @@ elif [ "$1" -eq 1 ]
 then
 	sys161 kernel "p uw-testbin/vm-data1;q"
 	sys161 kernel "p uw-testbin/vm-data3;q"
-	sys161 kernel "p uw-testbin/romewrite;q"
+	sys161 kernel "p uw-testbin/romemwrite;q"
 	sys161 kernel "p uw-testbin/vm-crash2;q"
 
 else

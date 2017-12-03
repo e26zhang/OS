@@ -256,3 +256,56 @@ panic("enter_new_process returned\n");
 	return EINVAL;
 
 }
+
+void sys__exit_spc(int exitcode) {
+
+  struct addrspace *as;
+  struct proc *p = curproc;
+  /* for now, just include this to keep the compiler from complaining about
+     an unused variable */
+
+  DEBUG(DB_SYSCALL,"Syscall: _exit(%d)\n",exitcode);
+
+  KASSERT(curproc->p_addrspace != NULL);
+
+  // -------------------------------------------------------------
+
+  p->exitcode = _MKWAIT_SIG(exitcode);
+  p->exited = true;
+
+  // Telling its kids they can die >:D
+
+  struct array * cur_array = p->mykids;
+  int num_kids = array_num(cur_array);
+
+  kill_kids (cur_array, num_kids);
+
+  cv_broadcast(p->mycv, p->waitinglock);
+    
+  lock_acquire(p->exitinglock);
+  lock_release(p->exitinglock);
+  // ---------------------------------------------------------------
+
+  as_deactivate();
+  /*
+   * clear p_addrspace before calling as_destroy. Otherwise if
+   * as_destroy sleeps (which is quite possible) when we
+   * come back we'll be calling as_activate on a
+   * half-destroyed address space. This tends to be
+   * messily fatal.
+   */
+  as = curproc_setas(NULL);
+  as_destroy(as);
+
+  /* detach this thread from its process */
+  /* note: curproc cannot be used after this call */
+  proc_remthread(curthread);
+
+  /* if this is the last user process in the system, proc_destroy()
+     will wake up the kernel menu thread */
+  proc_destroy(p);
+  
+  thread_exit();
+  /* thread_exit() does not return, so we should never get here */
+  panic("return from thread_exit in sys_exit\n");
+}

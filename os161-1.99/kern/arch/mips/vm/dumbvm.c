@@ -38,10 +38,32 @@
 #include <addrspace.h>
 #include <vm.h>
 
+void reset(unsigned long * value);
+
 /*
  * Dumb MIPS-only "VM system" that is intended to only be just barely
  * enough to struggle off the ground.
  */
+
+struct frame {
+	int continuous_length;// A frame will only have a non-zero value for this if it is the first part of a continuous number of frames 
+	paddr_t phy_addr;
+	bool continuous; 	 // A frame involved in a continuous number of acquired frames will be true, even if it's continuous length is zero
+	int used;
+};
+
+struct coremap {
+	int size; //Number of frames
+	struct frame *frames;
+	paddr_t starting_point; 
+};
+
+void reset(unsigned long * value) {
+	*value = 0;
+}
+
+struct coremap master_core;
+bool has_not_run = true;
 
 /* under dumbvm, always have 48k of user stack */
 #define DUMBVM_STACKPAGES    12
@@ -54,21 +76,94 @@ static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER;
 void
 vm_bootstrap(void)
 {
-	/* Do nothing. */
+	paddr_t low, high;
+	ram_getsize(&low, &high);
+
+	master_core.size = ((high - low)/PAGE_SIZE);
+
+	master_core.starting_point  = ROUNDUP(low + (sizeof(struct frame)*master_core.size ), PAGE_SIZE);
+	
+
+	master_core.frames = (struct frame *) PADDR_TO_KVADDR(low);
+
+	for (int i = 0; i < master_core.size; i++) {
+		master_core.frames[i].used = 0; // While loop to make true
+		master_core.frames[i].continuous = false;
+		master_core.frames[i].continuous_length = 0;
+		master_core.frames[i].phy_addr = low + (i * PAGE_SIZE);
+	}
+
+	int count = 0;
+	while ( master_core.frames[count].phy_addr < master_core.starting_point) {
+		master_core.frames[count].used = 1;
+		count++;
+	}
+
+	has_not_run = false;
 }
 
 static
 paddr_t
 getppages(unsigned long npages)
 {
-	paddr_t addr;
+	//kprintf("Here\n");
+	if (has_not_run == true) {
+		paddr_t addr;
 
-	spinlock_acquire(&stealmem_lock);
+		spinlock_acquire(&stealmem_lock);
 
-	addr = ram_stealmem(npages);
-	
-	spinlock_release(&stealmem_lock);
-	return addr;
+		addr = ram_stealmem(npages);
+		
+		spinlock_release(&stealmem_lock);
+		//kprintf("Here again B1\n");
+
+		return addr;
+	}
+
+	else {
+		paddr_t addr;
+
+		spinlock_acquire(&stealmem_lock);
+
+
+		unsigned long page_count = 0;
+		int count = 0;
+		while (count < master_core.size) {
+			if (master_core.frames[count].used == 1) {
+				reset(&page_count);
+				count++;
+				//kprintf("Here again - Within A3\n");
+				continue;
+			} 
+			
+			//kprintf("Here again - Within A1\n");
+			page_count++;
+
+			if (page_count == npages) {
+
+				master_core.frames[count - page_count + 1].continuous_length = (int)page_count - 1;
+				int selected_pages_counter = count - page_count + 1;
+				while (selected_pages_counter < count + 1) {
+				//	kprintf("Here again - Within A2\n");
+					master_core.frames[selected_pages_counter].continuous = true;
+					master_core.frames[selected_pages_counter].used = 1;
+					selected_pages_counter ++;
+				}
+
+				addr = master_core.frames[count - page_count + 1].phy_addr;
+				break;
+
+			}
+			count++;
+		}
+
+
+		
+		spinlock_release(&stealmem_lock);
+	//	kprintf("Here again B2\n");
+		return addr;
+
+	}
 }
 
 /* Allocate/free some kernel-space virtual pages */
@@ -88,7 +183,26 @@ free_kpages(vaddr_t addr)
 {
 	/* nothing - leak the memory. */
 
-	(void)addr;
+	spinlock_acquire(&stealmem_lock);
+
+	//kprintf("Made it\n");
+
+	int counter = 0;
+
+	paddr_t real_address = addr - MIPS_KSEG0;
+	while (counter < master_core.size) {
+		if(master_core.frames[counter].phy_addr == real_address) { break; }
+		counter++;
+	}
+
+	for(int i = counter; i <= master_core.frames[counter].continuous_length + counter; i++) {
+		master_core.frames[i].used = 0;
+		master_core.frames[i].continuous = false;
+
+		master_core.frames[i].continuous_length = 0;
+	}
+
+	spinlock_release(&stealmem_lock);
 }
 
 void
@@ -256,6 +370,9 @@ as_create(void)
 void
 as_destroy(struct addrspace *as)
 {
+	free_kpages(MIPS_KSEG0 + as->as_pbase1);
+	free_kpages(MIPS_KSEG0 + as->as_pbase2 );
+	free_kpages(MIPS_KSEG0 + as->as_stackpbase);
 	kfree(as);
 }
 

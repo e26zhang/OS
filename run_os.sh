@@ -22,7 +22,11 @@ then
 	sys161 kernel "p uw-testbin/vm-data3;q"
 	sys161 kernel "p uw-testbin/romemwrite;q"
 	sys161 kernel "p uw-testbin/vm-crash2;q"
-
+elif [ "$1" -eq 2 ]
+then
+	sys161 kernel "p testbin/sort;p testbin/sort;p testbin/sort;p testbin/sort; p testbin/sort;q"
+#	sys161 kernel "p testbin/matmult;p testbin/matmult;p testbin/matmult;p testbin/matmult;p testbin/matmult q"
+#	sys161 kernel "p uw-testbin/vm-data1;p uw-testbin/vm-data1;p uw-testbin/vm-data1;p uw-testbin/vm-data1;p uw-testbin/vm-data1 q"
 else
 	# sys161 -w kernel
 	sys161 kernel

@@ -45,6 +45,8 @@ void reset(unsigned long * value);
  * enough to struggle off the ground.
  */
 
+// Note: Didn't implement paging, just segmentation
+
 struct frame {
 	int continuous_length;// A frame will only have a non-zero value for this if it is the first part of a continuous number of frames 
 	paddr_t phy_addr;
@@ -199,7 +201,7 @@ free_kpages(vaddr_t addr)
 		master_core.frames[i].used = 0;
 		master_core.frames[i].continuous = false;
 
-		master_core.frames[i].continuous_length = 0;
+		//master_core.frames[i].continuous_length = 0;
 	}
 
 	spinlock_release(&stealmem_lock);
@@ -370,9 +372,9 @@ as_create(void)
 void
 as_destroy(struct addrspace *as)
 {
-	free_kpages(MIPS_KSEG0 + as->as_pbase1);
-	free_kpages(MIPS_KSEG0 + as->as_pbase2 );
-	free_kpages(MIPS_KSEG0 + as->as_stackpbase);
+	free_kpages(as->as_pbase1 + MIPS_KSEG0);
+	free_kpages(as->as_pbase2 + MIPS_KSEG0 );
+	free_kpages(  as->as_stackpbase + MIPS_KSEG0);
 	kfree(as);
 }
 
